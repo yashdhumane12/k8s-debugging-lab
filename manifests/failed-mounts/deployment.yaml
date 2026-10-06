@@ -1,0 +1,65 @@
+# BUG 1: ConfigMap referenced doesn't exist
+# SYMPTOM: Pod stuck in "Pending" with CreateContainerConfigError
+# FIX: Create the configmap first OR remove the volumeMount
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: failed-mount-app
+  labels:
+    bug: failed-mounts
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: failed-mount-app
+  template:
+    metadata:
+      labels:
+        app: failed-mount-app
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.25-alpine
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/app/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: app-config   # BUG: this ConfigMap doesn't exist
+---
+# BUG 2: Secret key mismatch
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wrong-secret-key
+  labels:
+    bug: wrong-secret-key
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wrong-secret-key
+  template:
+    metadata:
+      labels:
+        app: wrong-secret-key
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.25-alpine
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: password    # BUG: secret has key "db_password" not "password"
+---
+# The actual secret (key name is "db_password")
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secrets
+type: Opaque
+stringData:
+  db_password: "mysecretpassword"  # FIX: use key "db_password" in the env ref above

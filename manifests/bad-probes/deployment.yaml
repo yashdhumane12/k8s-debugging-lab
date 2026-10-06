@@ -1,0 +1,64 @@
+# BUG: liveness probe hits /healthz but app only has /health
+# SYMPTOM: Pod keeps restarting (CrashLoopBackOff)
+# FIX: Change path: /healthz → path: /health
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-probes-app
+  labels:
+    bug: bad-probes
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bad-probes-app
+  template:
+    metadata:
+      labels:
+        app: bad-probes-app
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.25-alpine
+          ports:
+            - containerPort: 80
+          livenessProbe:
+            httpGet:
+              path: /healthz    # BUG: nginx doesn't have /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz    # BUG: same wrong path
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
+---
+# FIX version — uncomment to apply the fix
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: bad-probes-app-fixed
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: bad-probes-app-fixed
+#   template:
+#     metadata:
+#       labels:
+#         app: bad-probes-app-fixed
+#     spec:
+#       containers:
+#         - name: app
+#           image: nginx:1.25-alpine
+#           livenessProbe:
+#             httpGet:
+#               path: /           # FIX: use correct path
+#               port: 80
+#           readinessProbe:
+#             httpGet:
+#               path: /
+#               port: 80

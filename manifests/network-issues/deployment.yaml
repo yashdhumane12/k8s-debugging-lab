@@ -1,0 +1,68 @@
+# BUG 1: NetworkPolicy blocks all ingress — app unreachable
+# SYMPTOM: curl to service times out, pod is running but not reachable
+# FIX: Add correct ingress rule or delete the NetworkPolicy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all-ingress
+  labels:
+    bug: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: network-app
+  policyTypes:
+    - Ingress
+  # BUG: no ingress rules = all traffic blocked
+  # FIX: Add this:
+  # ingress:
+  #   - from:
+  #     - podSelector: {}
+  #     ports:
+  #     - port: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: network-app
+  template:
+    metadata:
+      labels:
+        app: network-app
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.25-alpine
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: network-app-svc
+spec:
+  selector:
+    app: network-app
+  ports:
+    - port: 80
+      targetPort: 80
+---
+# BUG 2: Service port mismatch
+# Service exposes 8080 but pod listens on 80
+apiVersion: v1
+kind: Service
+metadata:
+  name: port-mismatch-svc
+  labels:
+    bug: port-mismatch
+spec:
+  selector:
+    app: network-app
+  ports:
+    - port: 80
+      targetPort: 8080   # BUG: pod listens on 80, not 8080

@@ -1,0 +1,44 @@
+# BUG: app tries to connect to "database" service but actual service name is "db"
+# SYMPTOM: Connection refused / DNS resolution fails
+# FIX: Change DB_HOST to "db" OR rename the service to "database"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broken-dns-app
+  labels:
+    bug: broken-dns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: broken-dns-app
+  template:
+    metadata:
+      labels:
+        app: broken-dns-app
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              echo "Trying to resolve 'database'..."
+              nslookup database  # BUG: wrong service name
+              echo "Trying to connect to postgres at 'database:5432'..."
+              nc -zv database 5432  # This will fail
+              sleep 3600
+          env:
+            - name: DB_HOST
+              value: "database"   # BUG: should be "db"
+---
+# Actual DB service (note: name is "db" not "database")
+apiVersion: v1
+kind: Service
+metadata:
+  name: db          # FIX: app should use this name
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432

@@ -1,0 +1,59 @@
+# BUG: memory limit too low — container will OOMKilled immediately
+# SYMPTOM: Pod status shows OOMKilled, keeps restarting
+# FIX: Increase memory limit to at least 128Mi
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wrong-limits-app
+  labels:
+    bug: wrong-limits
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wrong-limits-app
+  template:
+    metadata:
+      labels:
+        app: wrong-limits-app
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.25-alpine
+          resources:
+            requests:
+              cpu:    "10m"
+              memory: "4Mi"   # BUG: way too low, nginx needs ~20MB
+            limits:
+              cpu:    "50m"
+              memory: "4Mi"   # BUG: OOMKilled guaranteed
+          ports:
+            - containerPort: 80
+---
+# BUG 2: CPU throttling — request > limit is invalid
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wrong-limits-cpu
+  labels:
+    bug: wrong-limits-cpu
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wrong-limits-cpu
+  template:
+    metadata:
+      labels:
+        app: wrong-limits-cpu
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.25-alpine
+          resources:
+            requests:
+              cpu:    "500m"
+              memory: "64Mi"
+            limits:
+              cpu:    "100m"   # BUG: limit < request — pod pending forever
+              memory: "64Mi"
